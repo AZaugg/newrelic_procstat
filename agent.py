@@ -17,7 +17,7 @@ from collections import namedtuple
 
 
 URL = "https://platform-api.newrelic.com/platform/v1/metrics"
-GUID = ""
+GUID = "com.az.procs.procstats"
 LICENSE = ""
 
 class metric(object):
