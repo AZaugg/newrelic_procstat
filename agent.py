@@ -13,7 +13,6 @@ from collections import namedtuple
 # TODO: Migrate away from psutil to procfs
 # TODO: use loggin
 # TODO: Daemonise process
-# TODO: Disk stats
 # TODO: Metadata metrics to newrelic
 
 
@@ -161,7 +160,22 @@ def get_vm_stats(process):
 
 #-----------------------------------------------------------------------------------------------------------
 def get_io_stats(process):
-    pass
+
+    # TODO: Add iostat to metrics collect
+    #       rrqm/s wrqm/s r/s w/s avgrq-sz avgqu-sz await r_await w_awai
+
+    diskstats = metric('disk')
+
+    diskstats.add_metric('count', 'fd', process.num_fds())
+
+    stats = process.io_counters()
+    diskstats.add_metric('count', 'read', stats.read_bytes, 'bytecounters')
+    diskstats.add_metric('count', 'write', stats.write_bytes, 'bytescounters')
+
+    diskstats.add_metric('count', 'write', stats.write_count, 'iocounters')
+    diskstats.add_metric('count', 'read', stats.read_count, 'iocounters')
+
+    return diskstats
 #-----------------------------------------------------------------------------------------------------------
 
 
@@ -172,7 +186,7 @@ process = psutil.Process(2683)
 collection.append(get_cpu_stats(process))
 collection.append(get_net_stats(process))
 collection.append(get_vm_stats(process))
-#collection.append(get_io_stats(process))
+collection.append(get_io_stats(process))
 
 for metric in collection:
     for data in metric.metrics:
