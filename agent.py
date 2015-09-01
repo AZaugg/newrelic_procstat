@@ -7,9 +7,10 @@ import json
 import subprocess
 import logging
 from socket import gethostname
+from collections import namedtuple
+
 
 # TODO: Migrate away from psutil to procfs
-# TODO: Make named tuple for metrics
 # TODO: use loggin
 # TODO: Daemonise process
 # TODO: Disk stats
@@ -29,8 +30,11 @@ class metric(object):
         self.t_class = t_class
         self.metrics = []
 
-    def add_metric(self, unit, name, metric, sub_class=None):
-        self.metrics.append((name, metric, sub_class, unit))
+    def add_metric(self, unit, name, metric, namespace=None):
+        named = namedtuple("datapoint", ["unit", "name", "metric", "namespace"], verbose=False, rename=False)
+
+        datapoint = named(unit=unit, name=name, metric=metric, namespace=namespace)
+        self.metrics.append(datapoint)
 
 #-----------------------------------------------------------------------------------------------------------
 def run_process(cmd):
@@ -76,9 +80,9 @@ def get_cpu_stats(process):
 
             continue
 
-        if line_matrix:
-            for item in line_matrix:
-                cpustats.add_metric('percentage', item, line[line_matrix[item]], 'utilization')
+    if line_matrix:
+        for item in line_matrix:
+            cpustats.add_metric('percentage', item, line[line_matrix[item]], 'utilization')
 
     return  cpustats
 
@@ -137,7 +141,9 @@ def get_vm_stats(process):
 
     line_matrix = {}
     for line in output:
+        print line
         if 'minflt/s' in line and 'majflt/s' in line:
+            print line
             items = line.split()
 
             line_matrix['minflts'] = items.index('minflt/s')
@@ -145,9 +151,11 @@ def get_vm_stats(process):
 
             continue
 
-        if line_matrix:
-            for item in line_matrix:
-                memstats.add_metric('count', item, line[line_matrix[item]], 'faults')
+    if not line_matrix:
+        return memstats
+
+    for item in line_matrix:
+        memstats.add_metric('count', item, line[line_matrix[item]], 'faults')
 
     return memstats
 
@@ -171,16 +179,17 @@ for metric in collection:
         namespace = ''
         unit = ''
         section = metric.t_class
-        name = data[0]
-        if data[2]:
-            namespace = data[2] + "/"
+        name = data.name
 
-        if data[3]:
-            unit = "[" + data[3] + "]"
+        if data.namespace:
+            namespace = data.namespace + "/"
+
+        if data.unit:
+            unit = "[" + data.unit + "]"
 
         #key = "Component/%s%s/%s%s" % (metric.t_class, namespace, data[0])
         key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
-        value = data[1]
+        value = data.metric
 
         metrics[key] = value
 
@@ -194,7 +203,7 @@ a = {
   "components": [
     {
       "name": gethostname(),
-      "guid": "",
+      "guid": GUID,
       "duration" : 60,
       "metrics" : metrics
     }
