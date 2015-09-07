@@ -11,14 +11,15 @@ from collections import namedtuple
 
 
 # TODO: Migrate away from psutil to procfs
-# TODO: use loggin
 # TODO: Daemonise process
 # TODO: Metadata metrics to newrelic
 
 
 URL = "https://platform-api.newrelic.com/platform/v1/metrics"
-GUID = "com.az.procs.procstats"
+GUID = "com.az.procs.procstats1"
 LICENSE = ""
+LOG = logging.getLogger(__name__)
+
 
 class metric(object):
     def __init__(self, t_class):
@@ -37,15 +38,18 @@ class metric(object):
 
 #-----------------------------------------------------------------------------------------------------------
 def run_process(cmd):
+    LOG.debug("Running command: %s", cmd)
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
     output = process.communicate()[0].split('\n')
     output = [line for line in output if line != '']
+    LOG.debug("Returned raw output of: %s", output)
 
     return output
 #-----------------------------------------------------------------------------------------------------------
 def get_cpu_stats(process):
 
+    LOG.debug("Gathering CPU statistics")
     cpustats = metric('cpu')
 
     csw = process.num_ctx_switches()
@@ -91,6 +95,7 @@ def get_net_stats(process):
     # TODO: bytes in/out per process /proc/<PID>/net/dev
     # TODO: errors in/out per process /proc/<PID>/net/dev
 
+    LOG.debug("Gathering Network statistics")
     netstats = metric('net')
     current_connections = process.connections()
 
@@ -109,6 +114,8 @@ def get_net_stats(process):
 
 #-----------------------------------------------------------------------------------------------------------
 def get_vm_stats(process):
+
+    LOG.debug("Gathering Virtual Memory statistics")
     memstats = metric('mem')
 
     memstats.add_metric('percentage', 'percentage_usage', process.memory_percent())
@@ -164,6 +171,7 @@ def get_io_stats(process):
     # TODO: Add iostat to metrics collect
     #       rrqm/s wrqm/s r/s w/s avgrq-sz avgqu-sz await r_await w_awai
 
+    LOG.debug("Gathering IO statistics")
     diskstats = metric('disk')
 
     diskstats.add_metric('count', 'fd', process.num_fds())
@@ -181,6 +189,7 @@ def get_io_stats(process):
 
 collection = []
 metrics = dict()
+LOG.info("Watching process:" )
 process = psutil.Process(2683)
 
 collection.append(get_cpu_stats(process))
@@ -201,14 +210,12 @@ for metric in collection:
         if data.unit:
             unit = "[" + data.unit + "]"
 
-        #key = "Component/%s%s/%s%s" % (metric.t_class, namespace, data[0])
         key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
         value = data.metric
-
         metrics[key] = value
 
-print metrics
-a = {
+
+payload = {
   "agent": {
     "host" : gethostname(),
     "pid" : 1234,
@@ -224,8 +231,10 @@ a = {
   ]
 }
 
-headers = {"X-License-Key": LICENSE, "Content-Type":"application/json", "Accept":"application/json"}
+LOG.debug("Sending payload\n: %s", payload)
 
-r = requests.post(url=URL, headers=headers, data=json.dumps(a))
-print r.status_code
-print r.text
+headers = {"X-License-Key": LICENSE, "Content-Type":"application/json", "Accept":"application/json"}
+request = requests.post(url=URL, headers=headers, data=json.dumps(payload))
+LOG.debug("Newrelic response code: %s" ,request.status_code)
+print request.text
+
