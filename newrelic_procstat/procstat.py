@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import psutil
-
+import yaml
 import requests
 import json
 import subprocess
@@ -186,13 +186,42 @@ def get_io_stats(process):
 
 #-----------------------------------------------------------------------------------------------------------
 def read_config():
-    pass
+
+    with open("config.yml", 'r') as f_yaml:
+        config = yaml.load(f_yaml)
+
+    if 'process' not in config.keys():
+        LOG.error("process stanza does not exist in config file")
+        exit(1)
+
+    processes = config['process']
+
+    return processes
+
+#-----------------------------------------------------------------------------------------------------------
+def find_pid(processes):
+
+    pids = []
+
+    running_procs = psutil.process_iter()
+
+    for proc in running_procs:
+        if not proc.name() in processes:
+            continue
+
+        pids.append(proc)
+
+    return pids
 
 #-----------------------------------------------------------------------------------------------------------
 def main():
     # Read config file
     collection = []
     metrics = dict()
+
+    processes = read_config()
+    pids = find_pid(processes)
+
     LOG.info("Watching process:" )
     process = psutil.Process(2683)
     
