@@ -9,7 +9,6 @@ import logging
 from socket import gethostname
 from collections import namedtuple
 
-
 # TODO: Migrate away from psutil to procfs
 # TODO: Daemonise process
 # TODO: Metadata metrics to newrelic
@@ -31,7 +30,7 @@ class metric(object):
         self.metrics = []
 
     def add_metric(self, unit, name, metric, namespace=None):
-        named = namedtuple("datapoint", ["unit", "name", "metric", "namespace"], verbose=False, rename=False)
+        named = namedtuple("datapoint", ["unit", "name", "metric", "namespace"], verbose=False)
 
         datapoint = named(unit=unit, name=name, metric=metric, namespace=namespace)
         self.metrics.append(datapoint)
@@ -184,57 +183,65 @@ def get_io_stats(process):
     diskstats.add_metric('count', 'read', stats.read_count, 'iocounters')
 
     return diskstats
+
 #-----------------------------------------------------------------------------------------------------------
+def read_config():
+    pass
 
-
-collection = []
-metrics = dict()
-LOG.info("Watching process:" )
-process = psutil.Process(2683)
-
-collection.append(get_cpu_stats(process))
-collection.append(get_net_stats(process))
-collection.append(get_vm_stats(process))
-collection.append(get_io_stats(process))
-
-for metric in collection:
-    for data in metric.metrics:
-        namespace = ''
-        unit = ''
-        section = metric.t_class
-        name = data.name
-
-        if data.namespace:
-            namespace = data.namespace + "/"
-
-        if data.unit:
-            unit = "[" + data.unit + "]"
-
-        key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
-        value = data.metric
-        metrics[key] = value
-
-
-payload = {
-  "agent": {
-    "host" : gethostname(),
-    "pid" : 1234,
-    "version" : "1.0.0"
-  },
-  "components": [
-    {
-      "name": gethostname(),
-      "guid": GUID,
-      "duration" : 60,
-      "metrics" : metrics
+#-----------------------------------------------------------------------------------------------------------
+def main():
+    # Read config file
+    collection = []
+    metrics = dict()
+    LOG.info("Watching process:" )
+    process = psutil.Process(2683)
+    
+    collection.append(get_cpu_stats(process))
+    collection.append(get_net_stats(process))
+    collection.append(get_vm_stats(process))
+    collection.append(get_io_stats(process))
+    
+    for metric in collection:
+        for data in metric.metrics:
+            namespace = ''
+            unit = ''
+            section = metric.t_class
+            name = data.name
+    
+            if data.namespace:
+                namespace = data.namespace + "/"
+    
+            if data.unit:
+                unit = "[" + data.unit + "]"
+    
+            key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
+            value = data.metric
+            metrics[key] = value
+    
+    
+    payload = {
+      "agent": {
+        "host" : gethostname(),
+        "pid" : 1234,
+        "version" : "1.0.0"
+      },
+      "components": [
+        {
+          "name": gethostname(),
+          "guid": GUID,
+          "duration" : 60,
+          "metrics" : metrics
+        }
+      ]
     }
-  ]
-}
+    
+    LOG.debug("Sending payload\n: %s", payload)
+    
+    headers = {"X-License-Key": LICENSE, "Content-Type":"application/json", "Accept":"application/json"}
+    request = requests.post(url=URL, headers=headers, data=json.dumps(payload))
+    LOG.debug("Newrelic response code: %s" ,request.status_code)
+    print request.text
 
-LOG.debug("Sending payload\n: %s", payload)
-
-headers = {"X-License-Key": LICENSE, "Content-Type":"application/json", "Accept":"application/json"}
-request = requests.post(url=URL, headers=headers, data=json.dumps(payload))
-LOG.debug("Newrelic response code: %s" ,request.status_code)
-print request.text
-
+#-----------------------------------------------------------------------------------------------------------
+if __name__ == "__main__":
+    main()
