@@ -8,10 +8,13 @@ import subprocess
 import logging
 from socket import gethostname
 from collections import namedtuple
+from os import getpid
 
 # TODO: Migrate away from psutil to procfs
 # TODO: Daemonise process
 # TODO: Metadata metrics to newrelic
+# TODO: argpaese
+# TODO: Overall metrics
 
 
 URL = "https://platform-api.newrelic.com/platform/v1/metrics"
@@ -84,7 +87,7 @@ def get_cpu_stats(process):
 
     if line_matrix:
         for item in line_matrix:
-            cpustats.add_metric('percentage', item, line[line_matrix[item]], 'utilization')
+            cpustats.add_metric('percentage', item, line_matrix[item], 'utilization')
 
     return  cpustats
 
@@ -146,9 +149,7 @@ def get_vm_stats(process):
 
     line_matrix = {}
     for line in output:
-        print line
         if 'minflt/s' in line and 'majflt/s' in line:
-            print line
             items = line.split()
 
             line_matrix['minflts'] = items.index('minflt/s')
@@ -160,7 +161,7 @@ def get_vm_stats(process):
         return memstats
 
     for item in line_matrix:
-        memstats.add_metric('count', item, line[line_matrix[item]], 'faults')
+        memstats.add_metric('count', item, line_matrix[item], 'faults')
 
     return memstats
 
@@ -215,53 +216,57 @@ def find_pid(processes):
 
 #-----------------------------------------------------------------------------------------------------------
 def main():
-    # Read config file
-    collection = []
-    metrics = dict()
+    components = []
 
     processes = read_config()
     pids = find_pid(processes)
 
     LOG.info("Watching process:" )
-    process = psutil.Process(2683)
+
+    for pid in pids:
+        collection = []
+        metrics = dict()
+        process = psutil.Process(pid.pid)
     
-    collection.append(get_cpu_stats(process))
-    collection.append(get_net_stats(process))
-    collection.append(get_vm_stats(process))
-    collection.append(get_io_stats(process))
+        collection.append(get_cpu_stats(process))
+        collection.append(get_net_stats(process))
+        collection.append(get_vm_stats(process))
+        collection.append(get_io_stats(process))
     
-    for metric in collection:
-        for data in metric.metrics:
-            namespace = ''
-            unit = ''
-            section = metric.t_class
-            name = data.name
+        for metric in collection:
+            for data in metric.metrics:
+                namespace = ''
+                unit = ''
+                section = metric.t_class
+                name = data.name
     
-            if data.namespace:
-                namespace = data.namespace + "/"
+                if data.namespace:
+                    namespace = data.namespace + "/"
     
-            if data.unit:
-                unit = "[" + data.unit + "]"
+                if data.unit:
+                    unit = "[" + data.unit + "]"
     
-            key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
-            value = data.metric
-            metrics[key] = value
+                key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
+                value = data.metric
+                metrics[key] = value
+
+        component_template = {
+            "name": "%s-%s-%s" % (str(pid.pid), pid.name(), gethostname()),
+            "guid": GUID,
+            "duration" : 60,
+            "metrics" : metrics       
+        }
+
+        components.append(component_template)
     
     
     payload = {
       "agent": {
         "host" : gethostname(),
-        "pid" : 1234,
+        "pid" : getpid(),
         "version" : "1.0.0"
       },
-      "components": [
-        {
-          "name": gethostname(),
-          "guid": GUID,
-          "duration" : 60,
-          "metrics" : metrics
-        }
-      ]
+      "components": components
     }
     
     LOG.debug("Sending payload\n: %s", payload)
