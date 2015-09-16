@@ -68,11 +68,9 @@ def get_cpu_stats(process):
     04:47:53         3736    0.00    0.00    0.00    0.00     1  sshd
     '''
 
-    cmd = ["pidstat", "-p"]
+    cmd = ["pidstat", "1", "1", "-p"]
     cmd.append(str(process.pid))
 
-    #process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    #out = process.communicate()[0].split('\n')
     output = run_process(cmd)
 
     line_matrix = {}
@@ -85,9 +83,17 @@ def get_cpu_stats(process):
 
             continue
 
+        if line != "" and line_matrix.values():
+            items = line.split()
+
+            line_matrix['usr'] = round(float(items[line_matrix['usr']]))
+            line_matrix['sys'] = round(float(items[line_matrix['sys']]))
+
+            break
+
     if line_matrix:
         for item in line_matrix:
-            cpustats.add_metric('percentage', item, line_matrix[item], 'utilization')
+            cpustats.add_metric('percentage', item, int(line_matrix[item]), 'utilization')
 
     return  cpustats
 
@@ -143,7 +149,7 @@ def get_vm_stats(process):
     20:23:58     1000      2736      0.11      0.00   22440   3720   0.74  bash
     '''
 
-    cmd = ["pidstat", "-r", "-p"]
+    cmd = ["pidstat", "1", "1", "-r", "-p"]
     cmd.append(str(process.pid))
     output = run_process(cmd)
 
@@ -157,11 +163,19 @@ def get_vm_stats(process):
 
             continue
 
+        if line != "" and line_matrix.values():
+            items = line.split()
+
+            line_matrix['minflts'] = round(float(items[line_matrix['minflts']]))
+            line_matrix['majflts'] = round(float(items[line_matrix['majflts']]))
+
+            break
+
     if not line_matrix:
         return memstats
 
     for item in line_matrix:
-        memstats.add_metric('count', item, line_matrix[item], 'faults')
+        memstats.add_metric('count', item, int(line_matrix[item]), 'faults')
 
     return memstats
 
@@ -178,7 +192,7 @@ def get_io_stats(process):
 
     stats = process.io_counters()
     diskstats.add_metric('count', 'read', stats.read_bytes, 'bytecounters')
-    diskstats.add_metric('count', 'write', stats.write_bytes, 'bytescounters')
+    diskstats.add_metric('count', 'write', stats.write_bytes, 'bytecounters')
 
     diskstats.add_metric('count', 'write', stats.write_count, 'iocounters')
     diskstats.add_metric('count', 'read', stats.read_count, 'iocounters')
