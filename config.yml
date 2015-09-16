@@ -1,0 +1,10 @@
+#To configure plugin A
+# Under the process stanza have a list of process you want to watch
+# process:
+#  nginx
+
+process:
+   nginx
+   apache
+   
+   
