@@ -18,7 +18,7 @@ from os import getpid
 
 
 URL = "https://platform-api.newrelic.com/platform/v1/metrics"
-GUID = "com.az.procs.procstats1"
+GUID = "com.az.procs.procstats"
 LICENSE = ""
 LOG = logging.getLogger(__name__)
 
