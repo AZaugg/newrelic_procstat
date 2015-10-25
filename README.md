@@ -44,7 +44,8 @@ Plugin requires the following packages
 Installation:
 =============
 Clone repo
- git clone https://github.com/AZaugg/newrelic_procstat.git
+ $ git clone https://github.com/AZaugg/newrelic_procstat.git
+ $ nohup python newrelic_procstat/procstat.py & 
 
 Configuration:
 ==============
