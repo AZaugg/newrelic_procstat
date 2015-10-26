@@ -19,7 +19,6 @@ from os import getpid
 
 URL = "https://platform-api.newrelic.com/platform/v1/metrics"
 GUID = "com.az.procs.procstats"
-LICENSE = ""
 LOG = logging.getLogger(__name__)
 
 
@@ -205,13 +204,15 @@ def read_config():
     with open("config.yml", 'r') as f_yaml:
         config = yaml.load(f_yaml)
 
-    if 'process' not in config.keys():
-        LOG.error("process stanza does not exist in config file")
-        exit(1)
+    for key in ['general', 'process']:
+        if key not in config.keys():
+            LOG.error("%s stanza does not exist in config file", key)
+            exit(1)
 
     processes = config['process']
+    license = config['general']['license']
 
-    return processes
+    return processes, license
 
 #-----------------------------------------------------------------------------------------------------------
 def find_pid(processes):
@@ -232,7 +233,7 @@ def find_pid(processes):
 def main():
     components = []
 
-    processes = read_config()
+    processes, license = read_config()
     pids = find_pid(processes)
 
     LOG.info("Watching process:" )
@@ -285,7 +286,7 @@ def main():
     
     LOG.debug("Sending payload\n: %s", payload)
     
-    headers = {"X-License-Key": LICENSE, "Content-Type":"application/json", "Accept":"application/json"}
+    headers = {"X-License-Key": license, "Content-Type":"application/json", "Accept":"application/json"}
     request = requests.post(url=URL, headers=headers, data=json.dumps(payload))
     LOG.debug("Newrelic response code: %s" ,request.status_code)
     print request.text
