@@ -64,4 +64,7 @@ sleep 3600
 done
 ```
 
+Contributing:
+=============
+Pull requests are welcome. A few bits and bobs to make it a completely shippable package
 
