@@ -319,4 +319,5 @@ def main():
 #-----------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, sig_handle)
+    signal.signal(signal.SIGTERM, sig_handle)
     main()
