@@ -3,11 +3,9 @@
 # process:
 #  nginx
 
-gseneral:
+general:
    license: license_key
 
 process:
    nginx
    apache
-   
-   
