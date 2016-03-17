@@ -6,6 +6,8 @@ import requests
 import json
 import subprocess
 import logging
+import signal
+
 from socket import gethostname
 from collections import namedtuple
 from os import getpid
@@ -36,6 +38,9 @@ class metric(object):
         datapoint = named(unit=unit, name=name, metric=metric, namespace=namespace)
         self.metrics.append(datapoint)
 
+#-----------------------------------------------------------------------------------------------------------
+def sig_handle(signal, frame):
+    exit(0)
 #-----------------------------------------------------------------------------------------------------------
 def setup_logging():
     logging.basicConfig(level=logging.INFO)
@@ -313,4 +318,5 @@ def main():
 
 #-----------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, sig_handle)
     main()
