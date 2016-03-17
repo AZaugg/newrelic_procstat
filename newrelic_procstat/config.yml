@@ -5,6 +5,7 @@
 
 general:
    license: license_key
+   duration: 60
 
 process:
    nginx

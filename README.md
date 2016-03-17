@@ -65,13 +65,7 @@ Run it:
 nohup python procstat.py &
 
 Temporary fix while I daemonize the process
-```
-while true
-do
-python procstat.py
-sleep 3600
-done
-```
+
 
 Contributing:
 =============

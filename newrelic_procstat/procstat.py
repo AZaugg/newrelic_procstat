@@ -9,6 +9,7 @@ import logging
 from socket import gethostname
 from collections import namedtuple
 from os import getpid
+from time import sleep
 
 # TODO: Migrate away from psutil to procfs
 # TODO: Daemonise process
@@ -221,8 +222,13 @@ def read_config(logger):
 
     processes = config['process']
     license = config['general']['license']
+    duration = int(config['general']['duration'])
 
-    return processes, license
+    if duration < 60:
+        logger.warning('Duration cannot be less than 60 seconds...setting to 60')
+        duraction = 60
+
+    return processes, license, duration
 
 #-----------------------------------------------------------------------------------------------------------
 def find_pid(logger, processes):
@@ -245,64 +251,65 @@ def find_pid(logger, processes):
 #-----------------------------------------------------------------------------------------------------------
 def main():
     components = []
-
     logger = setup_logging()
-    processes, license = read_config(logger)
+    logger.info("Starting procstat" )
+
+    processes, license, duration = read_config(logger)
     pids = find_pid(logger, processes)
 
-    logger.info("Watching process:" )
+    while True:
+        for pid in pids:
+            collection = []
+            metrics = dict()
+            process = psutil.Process(pid.pid)
 
-    for pid in pids:
-        collection = []
-        metrics = dict()
-        process = psutil.Process(pid.pid)
+            collection.append(get_cpu_stats(logger, process))
+            collection.append(get_net_stats(logger, process))
+            collection.append(get_vm_stats(logger, process))
+            collection.append(get_io_stats(logger, process))
 
-        collection.append(get_cpu_stats(logger, process))
-        collection.append(get_net_stats(logger, process))
-        collection.append(get_vm_stats(logger, process))
-        collection.append(get_io_stats(logger, process))
+            for metric in collection:
+                for data in metric.metrics:
+                    namespace = ''
+                    unit = ''
+                    section = metric.t_class
+                    name = data.name
 
-        for metric in collection:
-            for data in metric.metrics:
-                namespace = ''
-                unit = ''
-                section = metric.t_class
-                name = data.name
+                    if data.namespace:
+                        namespace = data.namespace + "/"
 
-                if data.namespace:
-                    namespace = data.namespace + "/"
+                    if data.unit:
+                        unit = "[" + data.unit + "]"
 
-                if data.unit:
-                    unit = "[" + data.unit + "]"
+                    key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
+                    value = data.metric
+                    metrics[key] = value
 
-                key = "Component/%(section)s/%(namespace)s%(name)s%(unit)s" % locals()
-                value = data.metric
-                metrics[key] = value
+            component_template = {
+                "name": "%s-%s-%s" % (str(pid.pid), pid.name(), gethostname()),
+                "guid": GUID,
+                "duration": duration,
+                "metrics": metrics
+            }
 
-        component_template = {
-            "name": "%s-%s-%s" % (str(pid.pid), pid.name(), gethostname()),
-            "guid": GUID,
-            "duration" : 60,
-            "metrics" : metrics
+            components.append(component_template)
+
+        payload = {
+          "agent": {
+            "host" : gethostname(),
+            "pid" : getpid(),
+            "version" : "1.0.0"
+          },
+          "components": components
         }
 
-        components.append(component_template)
+        logger.debug("Sending payload to newrelic\n: %s", payload)
 
+        headers = {"X-License-Key": license, "Content-Type":"application/json", "Accept":"application/json"}
+        request = requests.post(url=URL, headers=headers, data=json.dumps(payload))
+        logger.debug("Newrelic response code: %s", request.status_code)
 
-    payload = {
-      "agent": {
-        "host" : gethostname(),
-        "pid" : getpid(),
-        "version" : "1.0.0"
-      },
-      "components": components
-    }
-
-    logger.debug("Sending payload to newrelic\n: %s", payload)
-
-    headers = {"X-License-Key": license, "Content-Type":"application/json", "Accept":"application/json"}
-    request = requests.post(url=URL, headers=headers, data=json.dumps(payload))
-    logger.debug("Newrelic response code: %s", request.status_code)
+        sleep(duration)
 
 #-----------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
